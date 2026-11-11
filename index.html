@@ -1,85 +1,38 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="theme-color" content="#101619">
-<title>Escape Road</title>
-<style>
-	*{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#101619;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;touch-action:none}canvas{display:block;width:100%;height:100%;outline:0}.hud{position:fixed;inset:0;pointer-events:none;color:#fff}.top{position:absolute;top:max(20px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);text-align:center;text-shadow:0 2px 12px #0009}.label{font-size:10px;font-weight:800;letter-spacing:.24em;color:#ffffff9c}.score{font-size:clamp(28px,5vw,42px);font-weight:900;line-height:1.05;font-variant-numeric:tabular-nums}.hint{position:absolute;bottom:max(24px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;letter-spacing:.12em;color:#ffffff99;text-shadow:0 2px 8px #000;white-space:nowrap}.icon{pointer-events:auto;position:absolute;top:max(18px,env(safe-area-inset-top));right:max(18px,env(safe-area-inset-right));width:42px;height:42px;border:1px solid #ffffff30;border-radius:14px;background:#10161966;color:white;font-size:19px;cursor:pointer;backdrop-filter:blur(8px)}.icon:active{background:#ffffff30}.overlay{position:fixed;inset:0;display:grid;place-items:center;background:#081013a8;backdrop-filter:blur(7px);color:white;opacity:0;visibility:hidden;transition:opacity .2s;z-index:2}.overlay.show{opacity:1;visibility:visible}.card{text-align:center;padding:30px}.card h1{margin:0 0 7px;font-size:clamp(32px,8vw,56px);font-weight:950;letter-spacing:-.05em}.card p{margin:0 0 22px;color:#ffffffa8;font-size:13px}.card button{border:0;border-radius:12px;padding:13px 25px;background:#f04b38;color:#fff;font-weight:900;letter-spacing:.08em;cursor:pointer}.controls{display:none}
-	@media(max-width:700px){.hint{bottom:max(28px,env(safe-area-inset-bottom))}.controls{display:block;position:fixed;inset:auto 0 0; height:40vh;pointer-events:none}.pad{pointer-events:auto;position:absolute;bottom:max(30px,env(safe-area-inset-bottom));width:70px;height:70px;border:1px solid #ffffff42;border-radius:22px;background:#ffffff14;color:#fff;font-size:27px;backdrop-filter:blur(8px)}.left{left:24px}.right{right:24px}.hint{bottom:calc(max(28px,env(safe-area-inset-bottom)) + 78px)}}
-</style>
+  <meta charset="utf-8">
+  <meta http-equiv="refresh" content="0; url=escaperoad3/game.html">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Escape Road</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      background: #101619;
+      color: #fff;
+      font-family: Arial, sans-serif;
+    }
+    .box {
+      text-align: center;
+      padding: 2rem;
+    }
+    a {
+      color: #fff;
+      text-decoration: underline;
+      font-weight: 700;
+    }
+  </style>
 </head>
 <body>
-<canvas id="game" aria-label="Escape Road driving game"></canvas>
-<div class="hud"><div class="top"><div class="label">DISTANCE</div><div class="score" id="score">0</div></div><div class="hint" id="hint">← →  STEER &nbsp;·&nbsp; A / D &nbsp;·&nbsp; SWIPE</div><button class="icon" id="fullscreen" aria-label="Toggle fullscreen" title="Fullscreen">⛶</button></div>
-<div class="controls"><button class="pad left" aria-label="Steer left">‹</button><button class="pad right" aria-label="Steer right">›</button></div>
-<div class="overlay" id="over"><div class="card"><h1>CAUGHT</h1><p id="result">You made it 0 meters</p><button id="restart">DRIVE AGAIN</button></div></div>
-<script>
-(()=>{
-	const canvas=document.getElementById('game'),ctx=canvas.getContext('2d'),scoreEl=document.getElementById('score'),overlay=document.getElementById('over'),result=document.getElementById('result');
-	let w=0,h=0,dpr=1,playerX=.5,keys={},traffic=[],particles=[],distance=0,speed=260,spawn=0,last=0,alive=true,roadOffset=0,policeX=.5,policeGap=1.5,steerTouch=0;
-	const clamp=(n,a,b)=>Math.max(a,Math.min(b,n)), rand=(a,b)=>a+Math.random()*(b-a);
-	function resize(){dpr=Math.min(devicePixelRatio||1,2);w=innerWidth;h=innerHeight;canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);ctx.setTransform(dpr,0,0,dpr,0,0)}
-	addEventListener('resize',resize);resize();
-	const lanes=3;
-	function road(){const rw=Math.min(w*.76,570),left=(w-rw)/2;return{left,right:left+rw,width:rw,lane:rw/lanes}}
-	function rounded(x,y,ww,hh,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(x,y,ww,hh,r);ctx.fill()}
-	function car(x,y,ww,hh,color,police=false){
-		ctx.save();ctx.translate(x,y);ctx.fillStyle='#0005';ctx.beginPath();ctx.ellipse(ww*.52,hh*.52,ww*.65,hh*.58,0,0,Math.PI*2);ctx.fill();
-		rounded(ww*.1,0,ww*.8,hh,ww*.2,color);rounded(ww*.18,hh*.18,ww*.64,hh*.26,ww*.08,police?'#9bd8e8':'#c6e9f4');
-		rounded(ww*.2,hh*.55,ww*.6,hh*.19,ww*.06,police?'#dcebf0':'#1f2930');
-		ctx.fillStyle=police?'#ff3e42':'#ffdf87';ctx.fillRect(ww*.15,hh*.04,ww*.16,hh*.045);ctx.fillRect(ww*.69,hh*.04,ww*.16,hh*.045);
-		ctx.fillStyle='#111';ctx.fillRect(0,hh*.2,ww*.13,hh*.22);ctx.fillRect(ww*.87,hh*.2,ww*.13,hh*.22);ctx.fillRect(0,hh*.68,ww*.13,hh*.2);ctx.fillRect(ww*.87,hh*.68,ww*.13,hh*.2);
-		if(police){ctx.fillStyle='#54d8ff';ctx.fillRect(ww*.25,hh*.47,ww*.24,hh*.07);ctx.fillStyle='#ff3e42';ctx.fillRect(ww*.51,hh*.47,ww*.24,hh*.07)}ctx.restore();
-	}
-	function scenery(dt,r){
-		ctx.fillStyle='#274b35';ctx.fillRect(0,0,w,h);
-		// roadside dashes and trees scroll at the same pace as the road
-		roadOffset=(roadOffset+speed*dt)%120;
-		for(let y=-120+roadOffset;y<h+120;y+=120){
-			for(const side of [-1,1]){const x=side<0?r.left-35:r.right+35;ctx.fillStyle='#183d2b';ctx.beginPath();ctx.arc(x,y,17,0,Math.PI*2);ctx.fill();ctx.fillStyle='#386445';ctx.beginPath();ctx.arc(x-4,y-4,12,0,Math.PI*2);ctx.fill();
-				ctx.fillStyle='#e7d8ac';ctx.fillRect(side<0?r.left-4:r.right,y+20,4,22)}
-		}
-		ctx.fillStyle='#343a3e';ctx.fillRect(r.left,0,r.width,h);
-		ctx.fillStyle='#d5d0bd';ctx.fillRect(r.left+5,0,4,h);ctx.fillRect(r.right-9,0,4,h);
-		ctx.strokeStyle='#ffffffb0';ctx.lineWidth=3;ctx.setLineDash([35,32]);ctx.lineDashOffset=-roadOffset;
-		for(let i=1;i<lanes;i++){ctx.beginPath();ctx.moveTo(r.left+r.lane*i,0);ctx.lineTo(r.left+r.lane*i,h);ctx.stroke()}ctx.setLineDash([]);
-		// subtle road edge shading
-		const grad=ctx.createLinearGradient(r.left,0,r.right,0);grad.addColorStop(0,'#0003');grad.addColorStop(.12,'#0000');grad.addColorStop(.88,'#0000');grad.addColorStop(1,'#0003');ctx.fillStyle=grad;ctx.fillRect(r.left,0,r.width,h);
-	}
-	function reset(){playerX=.5;traffic=[];particles=[];distance=0;speed=260;spawn=.65;alive=true;policeX=.5;policeGap=1.5;overlay.classList.remove('show');scoreEl.textContent='0';last=performance.now()}
-	function end(){if(!alive)return;alive=false;result.textContent=`You made it ${Math.floor(distance)} meters`;overlay.classList.add('show')}
-	function update(dt){if(!alive)return;const r=road(),steering=(keys.ArrowLeft||keys.a||keys.A?-1:0)+(keys.ArrowRight||keys.d||keys.D?1:0)+steerTouch;
-		playerX=clamp(playerX+steering*dt*.72,r.left/w+.065,r.right/w-.065);distance+=speed*dt/11;speed=Math.min(470,260+distance*.22);spawn-=dt;
-		if(spawn<=0){const lane=Math.floor(Math.random()*lanes),colors=['#e7b54a','#69a4c7','#bb695b','#a8b7a0','#d3d5d1'];traffic.push({x:(r.left+r.lane*(lane+.5))/w,y:-100,color:colors[Math.floor(Math.random()*colors.length)],factor:rand(.75,1.08)});spawn=rand(.72,1.24)*Math.max(.58,300/speed)}
-		const px=playerX*w,py=h*.77,cw=Math.max(29,r.lane*.43),ch=cw*1.65;
-		for(const t of traffic){t.y+=(speed*t.factor+35)*dt;const tx=t.x*w,tw=Math.max(29,r.lane*.43),th=tw*1.65;if(Math.abs(tx-px)<(cw+tw)*.42&&Math.abs(t.y-py)<(ch+th)*.4)end()}
-		traffic=traffic.filter(t=>t.y<h+120);
-		// Pursuit car closes in when the player drifts toward the road edge.
-		policeGap=Math.max(.12,policeGap-dt*(.035+Math.max(0,Math.abs(playerX-.5)-.22)*.16));policeX+=(playerX-policeX)*dt*.6;
-		if(policeGap<.3&&Math.abs(policeX-playerX)<.055)end();
-		particles=particles.filter(p=>p.life>0);for(const p of particles){p.y+=p.v*dt;p.life-=dt}
-		scoreEl.textContent=Math.floor(distance).toString();
-	}
-	function draw(dt){const r=road();scenery(dt,r);
-		// traffic and pursuing police
-		for(const t of traffic){const size=Math.max(29,r.lane*.43);car(t.x*w-size/2,t.y,size,size*1.65,t.color)}
-		const size=Math.max(29,r.lane*.43),py=h*.77;
-		car(policeX*w-size/2,py+size*1.9+policeGap*48,size,size*1.65,'#eef2ed',true);
-		car(playerX*w-size/2,py,size,size*1.65,'#ef4e3b');
-		// warm headlight glow
-		const glow=ctx.createRadialGradient(playerX*w,py-15,4,playerX*w,py-80,95);glow.addColorStop(0,'#ffd57b20');glow.addColorStop(1,'#ffd57b00');ctx.fillStyle=glow;ctx.fillRect(playerX*w-100,py-180,200,180);
-		if(!alive){ctx.fillStyle='#ff4b3b';ctx.globalAlpha=.08;ctx.fillRect(0,0,w,h);ctx.globalAlpha=1}
-	}
-	function frame(now){const dt=Math.min(.04,(now-last)/1000||0);last=now;update(dt);draw(dt);requestAnimationFrame(frame)}
-	requestAnimationFrame(frame);
-	addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();keys[e.key]=true;if(e.key==='Enter'&&!alive)reset()});addEventListener('keyup',e=>keys[e.key]=false);addEventListener('blur',()=>keys={});
-	document.querySelector('.left').addEventListener('pointerdown',e=>{e.preventDefault();steerTouch=-1});document.querySelector('.right').addEventListener('pointerdown',e=>{e.preventDefault();steerTouch=1});addEventListener('pointerup',()=>steerTouch=0);addEventListener('pointercancel',()=>steerTouch=0);
-	let swipeX=null;canvas.addEventListener('pointerdown',e=>{swipeX=e.clientX});canvas.addEventListener('pointermove',e=>{if(swipeX!==null&&e.pointerType==='touch'){const dx=e.clientX-swipeX;if(Math.abs(dx)>5){steerTouch=clamp(dx/60,-1,1);swipeX=e.clientX}}});canvas.addEventListener('pointerup',()=>{swipeX=null;steerTouch=0});
-	document.getElementById('restart').addEventListener('click',reset);
-	document.getElementById('fullscreen').addEventListener('click',()=>{if(!document.fullscreenElement)document.documentElement.requestFullscreen?.();else document.exitFullscreen?.()});
-})();
-</script>
+  <div class="box">
+    <p>Redirecting to the game...</p>
+    <p><a href="escaperoad3/game.html">Open Escape Road 3</a></p>
+  </div>
 </body>
 </html>
